@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import DeviceSetup from "./pages/DeviceSetup";
 import Users from "./pages/Users";
+import UserDetail from "./pages/UserDetail";
 import Register from "./pages/Register";
 import Reports from "./pages/Reports";
 
@@ -18,6 +19,7 @@ export default function App() {
               <Route index element={<Home />} />
               <Route path="device" element={<DeviceSetup />} />
               <Route path="users" element={<Users />} />
+              <Route path="users/:employeeNo" element={<UserDetail />} />
               <Route path="register" element={<Register />} />
               <Route path="reports" element={<Reports />} />
               <Route path="*" element={<Navigate to="/" replace />} />

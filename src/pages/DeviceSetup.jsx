@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import { useDeviceContext } from "../context/DeviceContext";
 import { useToast } from "../components/Toast";
 import { Spinner } from "../components/Spinner";
+import SitePicker, { siteDisplayName } from "../components/SitePicker";
 
 export default function DeviceSetup() {
   const { device, setDevice, setOnline } = useDeviceContext();
@@ -25,13 +26,13 @@ export default function DeviceSetup() {
   }, [push]);
 
   const selectSite = (site) => {
+    const name = siteDisplayName(site);
     setDevice({
       mode: "site",
       site_name: site.name,
-      site_label: site.label,
-      device_ip: site.device_ip,
+      site_label: name,
     });
-    push(`Selected ${site.label}`, "success");
+    push(`Selected ${name}`, "success");
   };
 
   const testAndSave = async () => {
@@ -58,31 +59,25 @@ export default function DeviceSetup() {
     <div>
       <div className="panel">
         <h2>Choose a site</h2>
-        <p>Each site talks to its Hikvision terminal by IP. Passwords stay on the server.</p>
-        <div className="chips">
-          {sites.map((site) => (
-            <button
-              key={site.name}
-              type="button"
-              className={`chip ${device?.mode === "site" && device.site_name === site.name ? "active" : ""}`}
-              onClick={() => selectSite(site)}
-            >
-              {site.label}
-            </button>
-          ))}
-        </div>
+        <p>Pick a location. Device credentials stay on the server.</p>
+        <SitePicker
+          sites={sites}
+          selectedName={device?.mode === "site" ? device.site_name : ""}
+          onSelect={selectSite}
+        />
       </div>
 
       <div className="panel">
-        <h2>Or connect by IP</h2>
-        <p>Use any reachable device URL — LAN IP, public IP:port, or ngrok HTTPS.</p>
+        <h2>Or connect a custom device</h2>
+        <p>Advanced: enter a reachable device URL when a site is not listed.</p>
         <div className="form-grid">
           <label className="field">
-            Device URL / IP
+            Device URL
             <input
               value={form.base_url}
               onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-              placeholder="http://192.168.1.64 or 217.29.x.x:4376"
+              placeholder="http://192.168.1.64"
+              autoComplete="off"
             />
           </label>
           <div className="form-row two">

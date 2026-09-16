@@ -14,9 +14,16 @@ export function DeviceProvider({ children }) {
   };
 
   const label = useMemo(() => {
-    if (!device) return "No device selected";
-    if (device.mode === "site") return `${device.site_label || device.site_name} · ${device.device_ip || ""}`;
-    return device.base_url || "Custom device";
+    if (!device) return "No site selected";
+    if (device.mode === "site") {
+      const name = device.site_label || device.site_name || "Site";
+      // Never surface raw host/IP in the UI banner
+      if (/\d{1,3}(\.\d{1,3}){3}|:\d{2,5}\b/.test(String(name))) {
+        return device.site_name || "Site";
+      }
+      return name;
+    }
+    return "Custom device";
   }, [device]);
 
   useEffect(() => {

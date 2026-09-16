@@ -78,6 +78,16 @@ export const api = {
   verifyPin: (pin) => request("/api/auth/enrollment-pin", { method: "POST", body: { pin } }),
   listUsers: (device, { position = 0, maxResults = 50 } = {}) =>
     request(`/api/users?position=${position}&max_results=${maxResults}`, { device }),
+  getUser: (device, employeeNo) =>
+    request(`/api/users/${encodeURIComponent(employeeNo)}`, { device }),
+  getUserFaceUrl: (device, employeeNo) => {
+    const path = withSite(`/api/users/${encodeURIComponent(employeeNo)}/face`, device);
+    // Bust cache after uploads.
+    const join = path.includes("?") ? "&" : "?";
+    return `${path}${join}t=${Date.now()}`;
+  },
+  getUserFaceBlob: (device, employeeNo) =>
+    request(`/api/users/${encodeURIComponent(employeeNo)}/face`, { device }),
   createUser: (device, data, { requirePin = false, pin } = {}) => {
     let path = `/api/users?require_pin=${requirePin ? "true" : "false"}`;
     if (pin) path += `&pin=${encodeURIComponent(pin)}`;
@@ -113,7 +123,7 @@ export const api = {
     return request("/api/attendance/report/full", { method: "POST", body: payload, device });
   },
   exportReport: (device, body) => {
-    const payload = { ...body };
+    const payload = { ...body, use_cache: body?.use_cache !== false };
     if (device?.mode === "site") payload.site_name = device.site_name;
     if (device?.mode === "custom") {
       payload.base_url = device.base_url;
