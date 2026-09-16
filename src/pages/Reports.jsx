@@ -93,6 +93,7 @@ export default function Reports() {
   const [deptFilter, setDeptFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [showDownloads, setShowDownloads] = useState(false);
+  const [viewMode, setViewMode] = useState("daily");
   const [isPending, startTransition] = useTransition();
   const deferredQuery = useDeferredValue(query);
   const fetchSeq = useRef(0);
@@ -151,10 +152,19 @@ export default function Reports() {
     }
     const key = memoryKey(device, startDate, endDate);
     if (!refresh && reportMemory.has(key)) {
-      applyReport(reportMemory.get(key));
-      if (!silent) push("Loaded from cache", "success");
-      softRefresh(key);
-      return;
+      const cached = reportMemory.get(key);
+      const sample = cached?.viewer?.[0]?.departments
+        ?.flatMap((d) => d.records || [])
+        ?.find((r) => r.status === "Present");
+      const missingLocationField =
+        !!sample && !Object.prototype.hasOwnProperty.call(sample, "start_location");
+      if (!missingLocationField) {
+        applyReport(cached);
+        if (!silent) push("Loaded from cache", "success");
+        softRefresh(key);
+        return;
+      }
+      reportMemory.delete(key);
     }
 
     const seq = ++fetchSeq.current;
@@ -279,6 +289,35 @@ export default function Reports() {
     [filteredViewer],
   );
 
+  const summarySections = useMemo(() => {
+    if (!report?.summary) return [];
+    return Object.entries(report.summary)
+      .filter(([key]) => deptFilter === "all" || key === deptFilter)
+      .map(([key, rows]) => {
+        const meta = departments.find((d) => d.key === key);
+        const q = deferredQuery.trim().toLowerCase();
+        const filtered = (rows || []).filter((row) => {
+          if (!q) return true;
+          return (
+            String(row.name || "").toLowerCase().includes(q) ||
+            String(row.id || "").toLowerCase().includes(q)
+          );
+        });
+        return {
+          key,
+          label: meta?.label || key,
+          color: meta?.color || "#8B0000",
+          rows: filtered,
+        };
+      })
+      .filter((section) => section.rows.length > 0);
+  }, [report, deptFilter, departments, deferredQuery]);
+
+  const summaryCount = useMemo(
+    () => summarySections.reduce((n, s) => n + s.rows.length, 0),
+    [summarySections],
+  );
+
   const m = report?.metrics || {};
   const filtersActive = statusFilter !== "all" || deptFilter !== "all" || !!query.trim();
 
@@ -399,7 +438,19 @@ export default function Reports() {
 
       {report ? (
         <div className={`report-results ${isPending ? "is-filtering" : ""}`}>
-          <div className="metrics metrics-simple">
+          <div className="metrics metrics-rich">
+            <div className="metric">
+              <strong>{m.days ?? 0}</strong>
+              <span>Days</span>
+            </div>
+            <div className="metric">
+              <strong>{m.total_records ?? 0}</strong>
+              <span>Records</span>
+            </div>
+            <div className="metric">
+              <strong>{m.staff_roster ?? 0}</strong>
+              <span>Roster</span>
+            </div>
             <div className="metric">
               <strong>{m.present ?? 0}</strong>
               <span>Present</span>
@@ -413,31 +464,74 @@ export default function Reports() {
               <span>Late</span>
             </div>
             <div className="metric">
+              <strong>{m.unique_staff ?? 0}</strong>
+              <span>Unique</span>
+            </div>
+            <div className="metric">
               <strong>{m.attendance_rate ?? 0}%</strong>
               <span>Rate</span>
             </div>
           </div>
 
+          {report.department_breakdown?.length ? (
+            <div className="dept-grid">
+              {report.department_breakdown.map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  className={`dept-card ${deptFilter === d.key ? "active" : ""}`}
+                  style={{ background: d.color }}
+                  onClick={() => setDeptFilter((cur) => (cur === d.key ? "all" : d.key))}
+                >
+                  <small>{d.label}</small>
+                  <strong>
+                    {d.present}/{d.total}
+                  </strong>
+                  <small>present</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className="panel report-filter-bar">
             <div className="filter-bar-head">
               <h3>Find in this report</h3>
               <span>
-                {visibleCount} shown
+                {viewMode === "daily" ? visibleCount : summaryCount} shown
                 {filtersActive ? " · filtered" : ""}
               </span>
             </div>
 
+            <div className="view-mode-row" role="group" aria-label="Report view">
+              <button
+                type="button"
+                className={`preset-chip ${viewMode === "daily" ? "active" : ""}`}
+                onClick={() => setViewMode("daily")}
+              >
+                Daily details
+              </button>
+              <button
+                type="button"
+                className={`preset-chip ${viewMode === "summary" ? "active" : ""}`}
+                onClick={() => setViewMode("summary")}
+              >
+                Period summary
+              </button>
+            </div>
+
             <div className="filter-bar-grid">
-              <label className="field">
-                Status
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  {statusOptions.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.optionLabel}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {viewMode === "daily" ? (
+                <label className="field">
+                  Status
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    {statusOptions.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.optionLabel}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
 
               <label className="field">
                 Department
@@ -522,7 +616,81 @@ export default function Reports() {
             <span style={{ background: "#EEEEEE", color: "#777" }}>Absent</span>
           </div>
 
-          {filteredViewer.length === 0 ? (
+          {viewMode === "summary" ? (
+            summarySections.length === 0 ? (
+              <div className="empty panel">No summary rows match these filters.</div>
+            ) : (
+              summarySections.map((section) => (
+                <div key={section.key} className="panel day-panel">
+                  <div className="day-head">
+                    <h2 style={{ color: section.color }}>{section.label}</h2>
+                    <span className="day-count">{section.rows.length}</span>
+                  </div>
+                  <div className="attendance-mobile mobile-only">
+                    {section.rows.map((row, idx) => (
+                      <article key={`${row.id}-${row.name}-${idx}`} className="att-card">
+                        <div className="att-card-top">
+                          <div>
+                            <strong>{row.name}</strong>
+                            <div className="att-card-meta">ID {row.id || "—"}</div>
+                          </div>
+                          <span className="badge ok">
+                            {row.days_present} present
+                          </span>
+                        </div>
+                        <div className="att-detail-grid">
+                          <div>
+                            <span>Absent</span>
+                            <strong>{row.days_absent}</strong>
+                          </div>
+                          <div>
+                            <span>Avg in</span>
+                            <strong>{row.avg_in || "—"}</strong>
+                          </div>
+                          <div>
+                            <span>Avg out</span>
+                            <strong>{row.avg_out || "—"}</strong>
+                          </div>
+                          <div>
+                            <span>Total</span>
+                            <strong>{row.total_hrs || "—"}</strong>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="table-wrap desktop-only">
+                    <table className="data">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>ID</th>
+                          <th>Days present</th>
+                          <th>Days absent</th>
+                          <th>Avg in</th>
+                          <th>Avg out</th>
+                          <th>Total hours</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.rows.map((row, idx) => (
+                          <tr key={`${row.id}-${row.name}-${idx}`}>
+                            <td>{row.name}</td>
+                            <td>{row.id}</td>
+                            <td>{row.days_present}</td>
+                            <td>{row.days_absent}</td>
+                            <td>{row.avg_in}</td>
+                            <td>{row.avg_out}</td>
+                            <td>{row.total_hrs}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))
+            )
+          ) : filteredViewer.length === 0 ? (
             <div className="empty panel">No people match these filters.</div>
           ) : (
             filteredViewer.map((day) => (
@@ -552,7 +720,13 @@ export default function Reports() {
                           <div className="att-card-top">
                             <div>
                               <strong>{row.name}</strong>
-                              <div className="att-card-meta">ID {row.id || "—"}</div>
+                              <div className="att-card-meta">
+                                ID {row.id || "—"}
+                                {row.role ? ` · ${row.role}` : ""}
+                              </div>
+                              {row.visit_status ? (
+                                <div className="att-card-meta">{row.visit_status}</div>
+                              ) : null}
                             </div>
                             <span className={`badge ${statusBadgeClass(row)}`}>{statusLabel(row)}</span>
                           </div>
@@ -576,19 +750,29 @@ export default function Reports() {
                               <strong>{row.hours || "—"}</strong>
                             </div>
                           </div>
+                          {(row.start_location || row.end_location) && row.status !== "Absent" ? (
+                            <div className="att-locations">
+                              <span>Start: {row.start_location || "—"}</span>
+                              <span>End: {row.end_location || "—"}</span>
+                            </div>
+                          ) : null}
                         </article>
                       ))}
                     </div>
 
                     <div className="table-wrap desktop-only">
-                      <table className="data">
+                      <table className="data data-wide">
                         <thead>
                           <tr>
                             <th>Status</th>
                             <th>Name</th>
                             <th>ID</th>
+                            <th>Role</th>
+                            <th>Visit</th>
                             <th>In</th>
                             <th>Out</th>
+                            <th>Start</th>
+                            <th>End</th>
                             <th>Hours</th>
                           </tr>
                         </thead>
@@ -601,6 +785,8 @@ export default function Reports() {
                               <td>{statusLabel(row)}</td>
                               <td>{row.name}</td>
                               <td>{row.id}</td>
+                              <td>{row.role || dept.label}</td>
+                              <td>{row.visit_status || "Assigned"}</td>
                               <td
                                 style={{
                                   background: row.check_in_bg,
@@ -611,6 +797,8 @@ export default function Reports() {
                                 {row.check_in || "-"}
                               </td>
                               <td>{row.check_out || "-"}</td>
+                              <td>{row.start_location || "-"}</td>
+                              <td>{row.end_location || "-"}</td>
                               <td>{row.hours || "-"}</td>
                             </tr>
                           ))}

@@ -23,6 +23,10 @@ export default function Home() {
           Connect device IP
         </Link>
       </div>
+      <p className="home-install-hint mobile-only">
+        On your phone, tap <strong>Install</strong> to add Bahdela to your home screen with the
+        Bahdela logo.
+      </p>
     </section>
   );
 }

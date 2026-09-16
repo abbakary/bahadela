@@ -1,5 +1,12 @@
 const DEVICE_KEY = "bahdela.device";
 
+/** Production API host (Railway). Leave empty in local Vite (uses /api proxy). */
+const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+
+export function apiBase() {
+  return API_BASE;
+}
+
 export function loadDevice() {
   try {
     return JSON.parse(localStorage.getItem(DEVICE_KEY) || "null");
@@ -32,6 +39,12 @@ function withSite(path, device) {
   return path;
 }
 
+function apiUrl(path) {
+  if (!API_BASE) return path;
+  if (path.startsWith("http")) return path;
+  return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function request(path, { method = "GET", body, device, headers = {}, isForm = false } = {}) {
   const opts = {
     method,
@@ -41,7 +54,7 @@ async function request(path, { method = "GET", body, device, headers = {}, isFor
     },
   };
 
-  const url = withSite(path, device);
+  const url = apiUrl(withSite(path, device));
 
   if (body != null) {
     if (isForm) {

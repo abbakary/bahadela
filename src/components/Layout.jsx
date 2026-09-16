@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
 import { useDeviceContext } from "../context/DeviceContext";
 import { siteDisplayName } from "./SitePicker";
+import InstallPrompt, { InstallBar } from "./InstallPrompt";
 
 const links = [
   { to: "/", label: "Home", icon: "⌂" },
@@ -71,6 +72,9 @@ export default function Layout() {
         </div>
         <Outlet />
       </main>
+
+      {isMobile ? <InstallBar /> : null}
+      {isMobile ? <InstallPrompt /> : null}
 
       {isMobile ? (
         <nav className="mobile-nav" aria-label="Mobile">

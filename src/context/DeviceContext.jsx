@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { loadDevice, saveDevice } from "../api/client";
+import { loadDevice, saveDevice, apiBase } from "../api/client";
 
 const DeviceContext = createContext(null);
 
@@ -17,7 +17,6 @@ export function DeviceProvider({ children }) {
     if (!device) return "No site selected";
     if (device.mode === "site") {
       const name = device.site_label || device.site_name || "Site";
-      // Never surface raw host/IP in the UI banner
       if (/\d{1,3}(\.\d{1,3}){3}|:\d{2,5}\b/.test(String(name))) {
         return device.site_name || "Site";
       }
@@ -27,8 +26,8 @@ export function DeviceProvider({ children }) {
   }, [device]);
 
   useEffect(() => {
-    // Soft health ping for API availability only
-    fetch("/api/health")
+    const healthUrl = `${apiBase()}/api/health`;
+    fetch(healthUrl)
       .then((r) => setOnline(r.ok))
       .catch(() => setOnline(false));
   }, [device]);
