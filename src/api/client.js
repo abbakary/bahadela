@@ -1,7 +1,7 @@
 const DEVICE_KEY = "bahdela.device";
 
-/** Production API host (Railway). Leave empty in local Vite (uses /api proxy). */
-const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+/** Production API host (Railway). */
+const API_BASE = "https://bahdelabackend-production.up.railway.app";
 
 export function apiBase() {
   return API_BASE;
